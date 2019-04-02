@@ -56,10 +56,7 @@ mappingDir = j + "Project/Evaluation/GF/resource_tracking/modular_framework_mapp
 nlpDir = j + "Project/Evaluation/GF/resource_tracking/modular_framework_mapping/nlp/"   
 
 repo_loc = "C:/Users/elineb/Documents/text_classifier/" 
-#os.chdir(j + "Project/Evaluation/GF/resource_tracking/modular_framework_mapping/nlp")
-#orig_stdout = sys.stdout
-#f = open('model_testing.txt', 'w')
-#sys.stdout = f
+os.chdir(j + "Project/Evaluation/GF/resource_tracking/modular_framework_mapping/nlp") #This is where your output will print. 
 
 #---------------------------------------------------------
 # To-do list for this code: 
@@ -229,7 +226,7 @@ def test_models(label, dataset, stopWords, translate, models, balanceData):
     X_train, X_validation, Y_train, Y_validation = model_selection.train_test_split(X_resampled, Y_resampled, test_size=validation_size, random_state=seed)
     
     seed = 7 #Pick a random seed. We'll want to reset this every time to make sure the data is always split in the best way. 
-    scoring = 'accuracy' #We want to pick the model that's the most accurate. 
+    scoring = 'neg_log_loss' #We want to pick the model that minimizes log loss.  
     
     #print(X_train)
     #print(Y_train)
@@ -238,13 +235,20 @@ def test_models(label, dataset, stopWords, translate, models, balanceData):
     names = []
     print("Results for training dataset " + label)
     for name, model in models:
-    	kfold = model_selection.KFold(n_splits=5, random_state=seed) #Set up 5-fold cross-validation with n_splits here. 
-    	cv_results = model_selection.cross_val_score(model, X_train, Y_train, cv=kfold, scoring=scoring)
-    	results.append(cv_results)
-    	names.append(name)
-    	msg = "%s: %f (%f)" % (name, cv_results.mean(), cv_results.std())
-    	print(msg)
-    
+        kfold = model_selection.KFold(n_splits=5, random_state=seed) #Set up 5-fold cross-validation with n_splits here. 
+        cv_results = model_selection.cross_val_score(model, X_train, Y_train, cv=kfold, scoring=scoring)
+        results.append(cv_results)
+        names.append(name)
+        msg = "%s: %f (%f)" % (name, cv_results.mean(), cv_results.std())
+        print("Log loss score: " + msg)
+            
+        model.fit(X_train, Y_train)
+        predicted = model.predict(X_validation)
+      
+        print("Accuracy score for " + label + ": " + accuracy_score(Y_validation, predicted)) #96.1% accuracy on french data, 98.4% accuracy on English data 
+        #print(confusion_matrix(Y_validation, predicted))
+        print(classification_report(Y_validation, predicted))  
+
     print("")
 
 #Run the function above on all the training datasets you specify. 
@@ -252,18 +256,18 @@ if __name__ == '__main__':
     
     #What models do you want to test? 
     models = []
-    models.append(('LR', LogisticRegression(solver='liblinear', multi_class='ovr')))
-    models.append(('LDA', LinearDiscriminantAnalysis()))
+    #models.append(('LR', LogisticRegression(solver='liblinear', multi_class='ovr')))
+#    models.append(('LDA', LinearDiscriminantAnalysis()))
     models.append(('KNN', KNeighborsClassifier()))
     models.append(('CART', DecisionTreeClassifier()))
-    models.append(('NB', GaussianNB()))
-    models.append(('SVM', SVC(gamma='auto')))     
+#    models.append(('NB', GaussianNB()))
+    #models.append(('SVM', SVC(gamma='auto')))     
     models.append(('RFC', RandomForestClassifier())) 
     
     #What training datasets do you want to run? 
     training_datasets = []
     training_datasets.append(("Hand-coded data, all languages", handcoded_all, stopwords_all, True, True))
-    training_datasets.append(("Teeny untranslated test", teeny_test, stopwords_all, True, True))
+    #training_datasets.append(("Teeny untranslated test", teeny_test, stopwords_all, True, True))
     
     #Print your results to a file 
     orig_stdout = sys.stdout
@@ -286,16 +290,3 @@ if __name__ == '__main__':
     sys.stdout = orig_stdout
     f.close() 
 
-#-----------------------------------------------------------------------------------
-# Which model did you end up picking? - set as the 'model' variable below. 
-#   Run a confusion matrix, accuracy score, and classification score to see what 
-#   we can improve. 
-#------------------------------------------------------------------------------------
-#Run a confusion matrix to see what types of errors the model is creating! Anything off of the diagonal we need to verify. 
-#model = DecisionTreeClassifier() #Accuracy on french dataset: 95.5%
-#model.fit(X_train, Y_train)
-#predictions = model.predict(X_validation)
-#print(accuracy_score(Y_validation, predictions)) #96.1% accuracy on french data, 98.4% accuracy on English data 
-#print(confusion_matrix(Y_validation, predictions))
-#print(classification_report(Y_validation, predictions))   
-    
