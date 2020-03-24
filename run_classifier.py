@@ -69,22 +69,23 @@ os.chdir(j + "Project/Evaluation/GF/resource_tracking/modular_framework_mapping/
 
 #Write your lists of stopwords 
 stopwords_french = list(stopwords.words('french'))
-stopwords_spanish = list(stopwords.words('spanish'))
-stopwords_english = list(stopwords.words('english'))
-stopwords_all = stopwords_french + stopwords_spanish + stopwords_english
+#stopwords_spanish = list(stopwords.words('spanish'))
+#stopwords_english = list(stopwords.words('english'))
+stopwords_all = stopwords_french 
 
 #Read in your replacement acronym lists. and subset to only the acronym and the original language translation. 
 # You could play with this and try different methodologies to see if one works better. 
-acronyms_esp = pd.read_csv(repo_loc + "acronyms_spanish.csv", encoding = "latin-1")
-acronyms_esp = acronyms_esp[['acronym', 'host_translation']]
+#acronyms_esp = pd.read_csv(repo_loc + "acronyms_spanish.csv", encoding = "latin-1")
+#acronyms_esp = acronyms_esp[['acronym', 'host_translation']]
 acronyms_fr = pd.read_csv(repo_loc + "acronyms_french.csv", encoding = "latin-1")
 acronyms_fr = acronyms_fr[['acronym', 'host_translation']]
-acronyms_eng = pd.read_csv(repo_loc + "acronyms_english.csv", encoding = "latin-1")
-acronyms_eng = acronyms_eng[['acronym', 'host_translation']]
+#acronyms_eng = pd.read_csv(repo_loc + "acronyms_english.csv", encoding = "latin-1")
+#acronyms_eng = acronyms_eng[['acronym', 'host_translation']]
 
 #Read in your pre-prepared training data
-handcoded_all = pd.read_csv(nlpDir + "nlp_training_handcoded_all.csv", encoding = "latin-1")
-teeny_test = handcoded_all[1:100] #Make a tiny dataset you can test code with
+#handcoded_all = pd.read_csv(nlpDir + "nlp_training_handcoded_all.csv", encoding = "latin-1")
+#teeny_test = handcoded_all[1:100] #Make a tiny dataset you can test code with
+tb_training = pd.read_excel(nlpDir + "tb_training_data_translated.xlsx", encoding="latin-1")
 modular_framework = pd.read_csv(mappingDir + "all_interventions.csv", encoding = "latin-1")
 
 #Read in the full list of indicator codes so you can see how comprehensive the training data you have is. 
@@ -121,40 +122,15 @@ def test_models(label, dataset, stopWords, translate, models, balanceData):
     print("Number of observations for dataset " + label + str(dataset.shape))
     print("")
     
-     #Fix acronyms - first split by language 
-    eng = dataset[dataset['lang'] == 'english']
-    esp = dataset[dataset['lang'] == 'spanish']
-    fr = dataset[dataset['lang'] == 'french']
-    
-    #Then replace acronym with the host language translation 
-    # EMILY NEED TO ADD IN ENGLISH HERE 
-    esp_acronym_corrected = []
-    for activity in esp['sda_activity']:
-        for index, row in acronyms_esp.iterrows():
-            activity = re.sub(row['acronym'], row['host_translation'], activity)
-        esp_acronym_corrected.append(activity)
-    esp['sda_activity'] = esp_acronym_corrected
-    
-    fr_acronym_corrected = []
-    for activity in fr['sda_activity']:
+    corrected_acronyms = [] # EMILY THERE'S STILL SOME WORK TO BE DONE HERE ON ACRONYMS. 
+    for activity in dataset['activity_description']:
         for index, row in acronyms_fr.iterrows():
             activity = re.sub(row['acronym'], row['host_translation'], activity)
-        fr_acronym_corrected.append(activity)
-    fr['sda_activity'] = fr_acronym_corrected
-    
-    eng_acronym_corrected = []
-    for activity in eng['sda_activity']:
-        for index, row in acronyms_eng.iterrows():
-            activity = re.sub(row['acronym'], row['host_translation'], activity)
-        eng_acronym_corrected.append(activity)
-    eng['sda_activity'] = eng_acronym_corrected
-        
-    corrected_acronyms = eng.append(fr, ignore_index = True)
-    corrected_acronyms = corrected_acronyms.append(esp, ignore_index = True)
-    dataset = corrected_acronyms
+        corrected_acronyms.append(activity)
+    dataset['activity_description'] = corrected_acronyms
     
     #Create a list of activities to work with (prep for vectorization)
-    activities = list(dataset['sda_activity'])
+    activities = list(dataset['activity_description'])
     
     #Remove numbers and punctuation
     new_activities = []
@@ -164,8 +140,8 @@ def test_models(label, dataset, stopWords, translate, models, balanceData):
     for activity in activities:
         activity = activity.translate(translator1)
         activity = activity.translate(translator2)
-        if (translate == True):
-            activity = translator3.translate(activity, dest="en").text
+#        if (translate == True):
+#            activity = translator3.translate(activity, dest="en").text
         new_activities.append(activity)
     
     activities = new_activities 
@@ -198,9 +174,9 @@ def test_models(label, dataset, stopWords, translate, models, balanceData):
     
     dataset = dataset.reset_index()
     activity_df = activity_df.reset_index()
-    disease_col = dataset.disease
+    disease_col = dataset.grant_disease
     activity_df = activity_df.join(disease_col, lsuffix = "left")
-    activity_df['disease'] = activity_df['disease'].map({'hiv':1, 'tb':2, 'malaria':3, 'rssh':4, 'hiv/tb':5}) #Save this encoding for later! 
+    activity_df['grant_disease'] = activity_df['grant_disease'].map({'hiv':1, 'tb':2, 'malaria':3, 'rssh':4, 'hiv/tb':5}) #Save this encoding for later! 
     
     #How are we getting NAs at this point?? 
     #-------------------------------------------------------------------------
@@ -256,35 +232,31 @@ if __name__ == '__main__':
     
     #What models do you want to test? 
     models = []
-    #models.append(('LR', LogisticRegression(solver='liblinear', multi_class='ovr')))
-#    models.append(('LDA', LinearDiscriminantAnalysis()))
     models.append(('KNN', KNeighborsClassifier()))
     models.append(('CART', DecisionTreeClassifier()))
-#    models.append(('NB', GaussianNB()))
-    #models.append(('SVM', SVC(gamma='auto')))     
     models.append(('RFC', RandomForestClassifier())) 
     
     #What training datasets do you want to run? 
     training_datasets = []
-    training_datasets.append(("Hand-coded data, all languages", handcoded_all, stopwords_all, True, True))
+    training_datasets.append(("TB DRC and SEN", tb_training, stopwords_french, True, models, True))
     #training_datasets.append(("Teeny untranslated test", teeny_test, stopwords_all, True, True))
     
     #Print your results to a file 
-    orig_stdout = sys.stdout
-    f = open('data_review.txt', 'w')
-    sys.stdout = f
-    
-    review_training_data(handcoded_all, "Handcoded All")
-    
-    sys.stdout = orig_stdout
-    f.close() 
+#    orig_stdout = sys.stdout
+#    f = open('data_review.txt', 'w')
+#    sys.stdout = f
+#    
+#    review_training_data(tb_training, "TB DRC and SEN")
+#    
+#    sys.stdout = orig_stdout
+#    f.close() 
     
     #Print your results to a file 
     orig_stdout = sys.stdout
     f = open('model_testing.txt', 'w')
     sys.stdout = f
     
-    for label, data, stopWords, translate, balanceData in training_datasets:
+    for label, data, stopWords, translate, models, balanceData in training_datasets:
         test_models(label, data, stopWords, translate, models, balanceData)
     
     sys.stdout = orig_stdout
